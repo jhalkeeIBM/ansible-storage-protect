@@ -105,7 +105,9 @@ def linux_main():
     try:
         # Handle uninstall first, regardless of other conditions
         if state == 'absent':
-            if not installed:
+            # A failed AIX deinstall can leave optional filesets after base is gone.
+            # Always let the AIX cleanup enumerate and remove those remnants.
+            if not installed and not utils.is_aix():
                 module.exit_json(changed=False, msg="BA Client not installed, nothing to remove")
             uninstalled = utils.uninstall_ba_client()
             if uninstalled:
