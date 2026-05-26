@@ -73,20 +73,20 @@ class BAClientHelper:
 
         if self.is_aix():
             rc, out, _ = self.run_cmd(
-                "lslpp -L tivoli.tsm.client.ba.64bit.base",
+                "lslpp -Lc tivoli.tsm.client.ba.64bit.base",
                 check_rc=False
             )
-            if rc == 0:
-                # Extract version from lslpp output
-                # Output format: "  tivoli.tsm.client.ba.64bit.base  8.1.26.0  C  F  ..."
-                for line in out.split('\n'):
-                    if 'tivoli.tsm.client.ba.64bit.base' in line:
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            version = parts[1]
-                            return True, version
-                return True, None
-            return False, None
+            if rc != 0:
+                return False, None
+
+            # The colon-delimited output is stable when display output wraps.
+            for line in out.splitlines():
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split(':')
+                if len(parts) >= 3 and parts[1] == 'tivoli.tsm.client.ba.64bit.base':
+                    return True, parts[2]
+            return True, None
 
         # Linux
         rc, out, _ = self.run_cmd("rpm -q TIVsm-BA", check_rc=False)
@@ -259,20 +259,36 @@ class BAClientHelper:
             return True
 
         if self.is_aix():
-            self.run_cmd(
-                "installp -u "
-                "tivoli.tsm.client.webgui "
-                "tivoli.tsm.client.ba.64bit.image "
-                "tivoli.tsm.client.ba.64bit.common "
-                "tivoli.tsm.client.ba.64bit.base "
-                "tivoli.tsm.client.api.64bit",
-                check_rc=False
-            )
-            self.run_cmd(
-                "installp -u tivoli.tsm.filepath.rte",
-                check_rc=False
-            )
-            return True
+            # Remove optional/dependent filesets before the BA and API base filesets.
+            # Both filepath names are checked because available client levels differ.
+            uninstall_order = [
+                'tivoli.tsm.client.jbb.64bit',
+                'tivoli.tsm.filepath_aix',
+                'tivoli.tsm.filepath.rte',
+                'tivoli.tsm.client.webgui',
+                'tivoli.tsm.client.ba.64bit.image',
+                'tivoli.tsm.client.ba.64bit.common',
+                'tivoli.tsm.client.ba.64bit.base',
+                'tivoli.tsm.client.api.64bit',
+            ]
+            removed_any = False
+
+            for fileset in uninstall_order:
+                rc, _, _ = self.run_cmd(f"lslpp -Lc {fileset}", check_rc=False)
+                if rc != 0:
+                    continue
+                self.run_cmd(f"installp -u {fileset}")
+                removed_any = True
+
+            installed, installed_version = self.check_installed()
+            if installed:
+                self.module.fail_json(
+                    msg=(
+                        'BA Client uninstall verification failed: '
+                        f'tivoli.tsm.client.ba.64bit.base {installed_version or "unknown"} remains installed'
+                    )
+                )
+            return removed_any
 
         self.run_cmd("rpm -e TIVsm-BA", check_rc=False)
         return True
