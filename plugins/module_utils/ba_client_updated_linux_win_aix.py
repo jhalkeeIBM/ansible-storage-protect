@@ -266,9 +266,9 @@ class BAClientHelper:
                 'tivoli.tsm.filepath_aix',
                 'tivoli.tsm.filepath.rte',
                 'tivoli.tsm.client.webgui',
+                'tivoli.tsm.client.ba.64bit.base',
                 'tivoli.tsm.client.ba.64bit.image',
                 'tivoli.tsm.client.ba.64bit.common',
-                'tivoli.tsm.client.ba.64bit.base',
                 'tivoli.tsm.client.api.64bit',
             ]
             removed_any = False
