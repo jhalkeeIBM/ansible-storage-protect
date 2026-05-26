@@ -268,6 +268,8 @@ class BAClientHelper:
                 'tivoli.tsm.client.webgui',
                 'tivoli.tsm.client.ba.64bit.base',
                 'tivoli.tsm.client.ba.64bit.image',
+                'tivoli.tsm.client.ba.64bit.nas',
+                'tivoli.tsm.client.ba.64bit.web',
                 'tivoli.tsm.client.ba.64bit.common',
                 'tivoli.tsm.client.api.64bit',
             ]
