@@ -282,12 +282,17 @@ class BAClientHelper:
                 self.run_cmd(f"installp -u {fileset}")
                 removed_any = True
 
-            installed, installed_version = self.check_installed()
-            if installed:
+            remaining = []
+            for fileset in uninstall_order:
+                rc, _, _ = self.run_cmd(f"lslpp -Lc {fileset}", check_rc=False)
+                if rc == 0:
+                    remaining.append(fileset)
+
+            if remaining:
                 self.module.fail_json(
                     msg=(
-                        'BA Client uninstall verification failed: '
-                        f'tivoli.tsm.client.ba.64bit.base {installed_version or "unknown"} remains installed'
+                        'BA Client uninstall verification failed; remaining AIX filesets: '
+                        + ', '.join(remaining)
                     )
                 )
             return removed_any
