@@ -75,6 +75,7 @@ def os_oskey(context: Dict[str, Any]) -> Dict[str, str]:
     os_data = context.get("os", {}) or {}
     family = (os_data.get("family") or "").lower()
     distro_id = (os_data.get("id") or "").lower()
+    arch = (os_data.get("arch") or "").lower()
 
     # Normalize OS family
     if family == "windows":
@@ -88,12 +89,16 @@ def os_oskey(context: Dict[str, Any]) -> Dict[str, str]:
 
     # Determine distro / specific OS name
     if os_family == "linux":
-        # Normalize common RHEL-family distros under "rhel"
-        rhel_like = {"rhel", "centos", "rocky", "almalinux", "oraclelinux"}
-        if distro_id in rhel_like:
-            os_name = "rhel"
+        # Check for pLinux (Power Linux) architecture
+        if arch in {"ppc64le", "ppc64"}:
+            os_name = "plinux"
         else:
-            os_name = distro_id or "linux"
+            # Normalize common RHEL-family distros under "rhel"
+            rhel_like = {"rhel", "centos", "rocky", "almalinux", "oraclelinux"}
+            if distro_id in rhel_like:
+                os_name = "rhel"
+            else:
+                os_name = distro_id or "linux"
     else:
         # For non-Linux OS, prefer reported id; fallback to family
         os_name = distro_id or os_family
@@ -1023,6 +1028,7 @@ def find_installer(
 
     Example:
         1.2.3.4-company-product-WindowsX64.exe
+        1.2.3.4-company-product-LinuxPPC64LE.bin
     """
     # Resolve extension
     ok = oskey.lower()
@@ -1030,7 +1036,7 @@ def find_installer(
     print(ok)
     if ok in ("windows", "win"):
         ext = ".exe"
-    elif ok in ("linux", "lin", "aix"):
+    elif ok in ("linux", "lin", "aix", "plinux"):
         ext = ".bin"
     elif ok in ("rhel", "centos"):
         ext = ".bin"

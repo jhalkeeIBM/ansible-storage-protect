@@ -266,6 +266,9 @@ ARTIFACT_PATTERNS = {
 
     # Example: 1.2.1.0-ORGI-SPOC-AixPPC.bin
     "aix": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-AixPPC\\.bin$",
+
+    # Example: 1.2.1.0-ORGI-SPOC-LinuxPPC64LE.bin or LinuxPPC64.bin
+    "plinux": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-LinuxPPC64(LE)?\\.bin$",
 }
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -338,8 +341,9 @@ class BA_SERVER_SETUP:
 
 
     def run(self, mode: str) -> bool:
-        os_name = utils1.os_oskey(self.ctx)["os"]
-        install_path = utils1.ba_install_dir(self.ctx, os_name)
+        os_key = utils1.os_oskey(self.ctx)
+        os_name = os_key["osname"]  # Use osname (e.g., "plinux", "rhel", "linux") instead of os family
+        install_path = utils1.ba_install_dir(self.ctx, os_key["os"])  # ba_install_dir needs os_family
         target_root = install_path.anchor or "/"
 
         if not utils1.fs_require_free_mb(self.ctx, min_mb=7500, path=target_root):
@@ -723,7 +727,7 @@ class BA_SERVER_SETUP:
         # linux line endings for linux playform execution
         # TODO: is this required (or need to fix in build only?)
 
-        if (os_name.lower().strip() == "linux"):
+        if (os_name.lower().strip() in ["linux", "plinux"]):
             # cmd = "sudo sed -i 's/\r$//' " + install_script_fullfilepath
             cmd = "dos2unix " + install_script_fullfilepath
             print(":::::")
@@ -737,11 +741,14 @@ class BA_SERVER_SETUP:
             else:
                 self.log.debug("Converted binary to linux line endings")
         
-        # For upgrade scenarios, patch install.sh to filter -skipUpgradeCheck before calling imcl
-        # The install.sh has contradictory logic: it requires the flag but passes it to imcl which rejects it
-        # This applies to both Linux and AIX
-        if is_upgrade and os_name.lower().strip() in ["linux", "aix"]:
-            self.log.info("Upgrade scenario detected - patching install.sh to filter -skipUpgradeCheck")
+        # SP 8.2.2+ requires -skipUpgradeCheck for silent Unix installs as well as upgrades.
+        # install.sh validates that flag but must not forward it to imcl.
+        unix_install = os_name.lower().strip() in ["linux", "aix", "plinux"]
+        requires_skip_upgrade_check = is_upgrade or (
+            unix_install and utils1.version_parse(version) >= utils1.version_parse("8.2.2.000")
+        )
+        if requires_skip_upgrade_check and unix_install:
+            self.log.info("Patching install.sh to accept -skipUpgradeCheck for silent install")
             
             # Create a patch script that modifies install.sh in place
             # AIX sed doesn't support -i flag, so we use temp file approach that works on both platforms
@@ -828,10 +835,10 @@ fi
             else:
                 self.log.info(f"Patch script succeeded: {patch_resp.get('stdout', '')}")
 
-        # For upgrade scenarios in SP 8.2.2+, add -skipUpgradeCheck flag to install.sh
-        if is_upgrade:
+        # SP 8.2.2+ Unix installers require acknowledgement in silent mode, including new installs.
+        if requires_skip_upgrade_check:
             install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense -skipUpgradeCheck".format(respfile=xmlfile)
-            self.log.info("Using -skipUpgradeCheck flag for silent upgrade")
+            self.log.info("Using -skipUpgradeCheck flag for silent installation")
         else:
             install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense".format(respfile=xmlfile)
 
@@ -889,7 +896,7 @@ fi
             # Clean up platform-specific remnants after successful uninstall
             if os_name.lower().strip() == "windows":
                 self._cleanup_windows_user_group()
-            elif os_name.lower().strip() in ["linux", "aix"]:
+            elif os_name.lower().strip() in ["linux", "aix", "plinux"]:
                 self._cleanup_linux_aix_remnants()
                 
             # Print final summary
