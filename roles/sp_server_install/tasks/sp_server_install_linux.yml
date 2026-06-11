@@ -132,6 +132,12 @@
     - name: Rollback if installation fails
       when: not sp_server_installation_status and sp_server_action == "install"
       block:
+        - name: Preserve Installation Manager logs
+          ansible.builtin.archive:
+            path: /var/ibm/InstallationManager/logs
+            dest: /tmp/sp-installation-manager-logs.tar.gz
+          ignore_errors: true
+
         - name: Checking for installed packages
           ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
 
