@@ -77,6 +77,7 @@
           ansible.builtin.copy:
             src: /opt/tivoli/tsm/server/bin/dsmserv.opt.smp
             dest: "/{{ tsm_user }}/dsmserv.opt"
+            remote_src: true
             owner: "{{ tsm_user }}"
             group: "{{ tsm_group }}"
             mode: "0644"
